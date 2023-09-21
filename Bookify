@@ -255,12 +255,15 @@ doTrackEpisode (){
  local IS_TITLED="$(getInfoSeries "get_is_titled" $series_UUID)"
  local SERIES_LAST_EPISODE="$(getInfoSeries "get_cur_episode" $series_UUID)"
  local FILE_EXTENSION="$(getInfoSeries "get_file_extension" $series_UUID)"
-
-
+ 
  if $IS_TITLED ; then 
   episode_name="$SERIES_LAST_EPISODE.$FILE_EXTENSION"
  else
   episode_name="${EPISODE_FILE_FORMAT/NumberHere/"$SERIES_LAST_EPISODE"}.$FILE_EXTENSION"
+ fi
+ 
+ if [ ! $# -eq 1 ]; then
+    episode_name="$2.$FILE_EXTENSION"
  fi
 
  local episode_path="$PATH_TO_DIRECTORY/$episode_name"
@@ -323,11 +326,16 @@ ChooseEpisode (){
   clear
   
   if $(gum confirm "Want to save $episode_choosen as new last episode watched?"); then
+      
       doUpdateInfoSeries "update_last_episode" $series_UUID $episode_choosen
+
+      gum spin --spinner globe --title "Starting $(ColorOutput $ACCENT_COLOR $episode_choosen)" -- sleep 2
+      doTrackEpisode $series_UUID 
+      clear; ShowMenu
   fi
  
   gum spin --spinner globe --title "Starting $(ColorOutput $ACCENT_COLOR $episode_choosen)" -- sleep 2
-  doTrackEpisode $series_UUID
+  doTrackEpisode $series_UUID $episode_choosen
   clear; ShowMenu
 }
 
