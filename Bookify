@@ -1,0 +1,465 @@
+#!/bin/sh
+
+export GUM_INPUT_PROMPT="📽️ " 
+
+CONFIG_DIRECTORY_PATH="/home/$USER/.config/bookify"
+
+# Defaults
+VIDEO_PLAYER="mpv"
+ACCENT_COLOR="#FF87D7"
+
+InitShowVersion () {
+ gum style --border normal --padding "1 2" --border-foreground $ACCENT_COLOR "Hello, there! Welcome to $(gum style --foreground $ACCENT_COLOR 'Bookify')" "📦 Version 0.1"
+}
+
+# ----------------------------------------------------------------
+
+TestIfFirstTime () {
+   if [ ! -e ${CONFIG_DIRECTORY_PATH}/bookify.conf ]; then
+      gum spin --spinner monkey --title "First time, right? 🫠 Creating config files" -- sleep 3
+      
+      clear; echo "🗄️ What do you use to watch video? (Mpv, VLC, ...)"
+      local video_player=$(gum input --placeholder "Support is ready only for MPV")
+
+      mkdir ${CONFIG_DIRECTORY_PATH}
+      touch ${CONFIG_DIRECTORY_PATH}/bookify.conf
+      mkdir ${CONFIG_DIRECTORY_PATH}/series_conf
+      touch ${CONFIG_DIRECTORY_PATH}/series_conf/settings_series.csv
+      touch ${CONFIG_DIRECTORY_PATH}/library.csv
+      echo "Title,Last episode,UUID" >> ${CONFIG_DIRECTORY_PATH}/library.csv
+
+      echo $video_player >> ${CONFIG_DIRECTORY_PATH}/bookify.conf
+   fi
+
+   source ${CONFIG_DIRECTORY_PATH}/bookify.conf
+   VIDEO_PLAYER=$conf_video_player
+   ACCENT_COLOR=$conf_accent_color
+}
+
+# ----------------------------------------------------------------
+
+doLeadingZeroFill ()
+{
+    # print the number as a string with a given number of leading zeros
+    local num_zero=("$1")
+    leading_zero_convert=$((num_zero + 1)) 
+    foo=$(printf "%0${leading_zero_convert}d\\n" "$2")
+    echo "${foo}"
+    return 
+}
+
+# ----------------------------------------------------------------
+
+ColorOutput () {
+  gum style --foreground $1 "$2" 
+}
+
+# ----------------------------------------------------------------
+
+# ? Read settings_..._.csv 
+getInfoSeries () {
+
+  local GET_REQUEST=("$1") 
+
+  if [ ! $# -eq 1 ]; then
+     local UUID=("$2")
+  fi
+
+  while read line ; do 
+    if [[ $line =~ $UUID ]]; then
+       IFS=',' read -r -a lib_series_choosen <<< "$line"
+       break
+    fi
+  done < ${CONFIG_DIRECTORY_PATH}/library.csv
+
+  while read line ; do 
+    if [[ $line =~ $UUID ]]; then
+       IFS=',' read -r -a info_series_choosen <<< "$line"
+       break
+    fi
+  done < ${CONFIG_DIRECTORY_PATH}/series_conf/settings_series.csv
+  
+  # 0 TITLE | 1 LAST_EPISODE | 2 UUID  LIB
+  # 0 UUID | 1 EPISODE_FILE_FORMAT | 2 PATH_TO_DIRECTORY | 3 IS_TITLED | 4 LEADING_ZERO | 5 LEADING_ZERO_NUMBER | 6 FILE_EXTENSION CONF
+
+  local EPISODE_FILE_FORMAT="${info_series_choosen[1]}"
+  local PATH_TO_DIRECTORY="${info_series_choosen[2]}"
+  local IS_TITLED="${info_series_choosen[3]}"
+  local LEADING_ZERO="${info_series_choosen[4]}"
+  local LEADING_ZERO_NUMBER="${info_series_choosen[5]}"
+  local FILE_EXTENSION="${info_series_choosen[6]}"
+  local SERIES_LAST_EPISODE="${lib_series_choosen[1]}"
+  local SERIES_NAME="${lib_series_choosen[0]}"
+
+  case $GET_REQUEST in
+ #  -----------
+    get_name)
+      echo "$SERIES_NAME"
+      return
+      ;;
+ #  -----------
+    get_ep_format)
+      echo "$EPISODE_FILE_FORMAT"
+      return
+      ;;
+ #  -----------
+    get_path)
+      echo "$PATH_TO_DIRECTORY"
+      return
+      ;;
+ #  -----------
+    get_is_titled)
+      echo "$IS_TITLED"
+      return
+      ;;
+  #  -----------
+    get_cur_episode)
+      echo "$SERIES_LAST_EPISODE"
+      return
+      ;;
+ #  -----------
+    get_next_episode)
+      local next_episode="$(($SERIES_LAST_EPISODE+1))"
+      doLeadingZeroFill $LEADING_ZERO_NUMBER $next_episode
+      return
+      ;;
+ #  -----------
+    get_leading_zero)
+      echo "$LEADING_ZERO"
+      return
+      ;;
+ #  -----------
+    get_leading_zero_number)
+      echo "$LEADING_ZERO_NUMBER"
+      return
+      ;;
+ #  -----------
+    get_file_extension)
+      echo "$FILE_EXTENSION"
+      return
+      ;;
+ #  -----------
+    get_line_library)
+      
+      while read line ; do 
+        if [[ $line =~ $UUID ]]; then
+           echo "$line"
+           break
+        fi
+      done < ${CONFIG_DIRECTORY_PATH}/library.csv
+
+      return
+      ;;
+ #  -----------
+    get_line_config)
+      
+      while read line ; do 
+        if [[ $line =~ $UUID ]]; then
+           echo "$line"
+           break
+        fi
+      done < ${CONFIG_DIRECTORY_PATH}/series_conf/settings_series.csv
+
+      return
+      ;;
+  #  -----------
+    get_user_table_choice_UUID)
+
+      local series_choosen=$(gum table < ${CONFIG_DIRECTORY_PATH}/library.csv -w 50,50 --height 10)
+      IFS=',' read -r -a series_chosen_array <<< "$series_choosen"
+      
+      echo "${series_chosen_array[2]}"
+      return
+      ;;
+  #  -----------
+    get_latest_UUID)
+      
+      IFS=',' read -r -a recent_series <<< "$(sed '2q;d' ${CONFIG_DIRECTORY_PATH}/library.csv)"
+      echo "${recent_series[2]}"
+      return
+      ;;
+ #  -----------
+    *)
+      clear
+      echo "Bye, see you later 🖐️"
+      exit
+      ;;
+  esac
+
+}
+
+doUpdateInfoSeries () {
+  
+  local GET_REQUEST=("$1")  
+  local UUID=("$2")
+  local VARIABLE_UPDATE=("$3")
+  
+  # 0 TITLE | 1 LAST_EPISODE | 2 UUID  LIB
+  # 0 UUID | 1 EPISODE_FILE_FORMAT | 2 PATH_TO_DIRECTORY | 3 IS_TITLED | 4 LEADING_ZERO | 5 LEADING_ZERO_NUMBER CONF
+
+  local EPISODE_FILE_FORMAT="$(getInfoSeries "get_ep_format" $UUID)"
+  local PATH_TO_DIRECTORY="$(getInfoSeries "get_path" $UUID)"
+  local IS_TITLED="$(getInfoSeries "get_is_titled" $UUID)"
+  local LEADING_ZERO="$(getInfoSeries "get_leading_zero" $UUID)"
+  local LEADING_ZERO_NUMBER="$(getInfoSeries "get_leading_zero_number" $UUID)"
+  local SERIES_LAST_EPISODE="$(getInfoSeries "get_cur_episode" $UUID)"
+  local SERIES_NAME="$(getInfoSeries "get_name" $UUID)"
+
+  case $GET_REQUEST in
+    update_last_episode)
+        local new_episode_string=$VARIABLE_UPDATE
+
+        if $IS_TITLED ; then
+          NEW_EPISODE_UP="$new_episode_string" 
+        else
+          # Define Before and After of Episode number in string
+          searchstring="NumberHere"
+          after=${EPISODE_FILE_FORMAT#*$searchstring} 
+          before=${EPISODE_FILE_FORMAT%$searchstring*}
+
+          # Sort only episode number from episode filename
+          temp_var="${new_episode_string#$before}"
+          NEW_EPISODE_UP="${temp_var%$after}"
+        fi
+        
+        NEW_STRING_LIB_UPDATED="$SERIES_NAME,$NEW_EPISODE_UP,$UUID"
+        OLD_STRING_LIB="$SERIES_NAME,$SERIES_LAST_EPISODE,$UUID"
+
+        # Add new line and delete last one
+        sed -i 2i"$NEW_STRING_LIB_UPDATED" ${CONFIG_DIRECTORY_PATH}/library.csv
+        sed -i "/$OLD_STRING_LIB/d" ${CONFIG_DIRECTORY_PATH}/library.csv
+
+        return
+        ;;
+    update_last_series)
+     
+       local line_series="$(getInfoSeries "get_line_library" $UUID)"
+       
+       sed -i "/$line_series/d" ${CONFIG_DIRECTORY_PATH}/library.csv
+       sed -i 2i"$line_series" ${CONFIG_DIRECTORY_PATH}/library.csv
+       
+
+       return
+       ;;
+  esac
+}
+
+# ----------------------------------------------------------------
+
+doTrackEpisode (){
+  
+ local series_UUID=("$1")
+ 
+ local PATH_TO_DIRECTORY="$(getInfoSeries "get_path" $series_UUID)"
+ local EPISODE_FILE_FORMAT="$(getInfoSeries "get_ep_format" $series_UUID)"
+ local IS_TITLED="$(getInfoSeries "get_is_titled" $series_UUID)"
+ local SERIES_LAST_EPISODE="$(getInfoSeries "get_cur_episode" $series_UUID)"
+ local FILE_EXTENSION="$(getInfoSeries "get_file_extension" $series_UUID)"
+
+
+ if $IS_TITLED ; then 
+  episode_name="$SERIES_LAST_EPISODE.$FILE_EXTENSION"
+ else
+  episode_name="${EPISODE_FILE_FORMAT/NumberHere/"$SERIES_LAST_EPISODE"}.$FILE_EXTENSION"
+ fi
+
+ local episode_path="$PATH_TO_DIRECTORY/$episode_name"
+ 
+ $VIDEO_PLAYER $episode_path | while IFS= read -r line; do
+     if [[ $line =~ Playing ]]; then # Works for MPV for now
+        # Save the matched text and stop
+          string="$EPISODE_FILE_FORMAT.$FILE_EXTENSION"
+          searchstring="NumberHere"
+
+          post_episode_n=${string#*$searchstring} 
+          pre_episode_n=${string%$searchstring*}
+
+          post_pre_log_ln=${line#*$pre_episode_n}
+          episode_number_log_ln=${post_pre_log_ln%$post_episode_n}
+          
+          doUpdateInfoSeries "update_last_episode" $series_UUID $episode_number_log_ln
+     fi
+ done
+}
+
+# ----------------------------------------------------------------
+
+LatestSeries (){
+  # local latest_UUID="$(getInfoSeries "get_lat_UUID")"
+  echo "Select which series you want to watch or read 🧐"; echo " "
+
+  local series_UUID="$(getInfoSeries "get_user_table_choice_UUID")"
+  local series_name="$(getInfoSeries "get_name" $series_UUID)"
+  local is_titled="$(getInfoSeries "get_is_titled" $series_UUID)"
+  local current_episode="$(getInfoSeries "get_cur_episode" $series_UUID)"
+  local next_episode="$(getInfoSeries "get_next_episode" $series_UUID)"
+
+  if $is_titled ; then 
+     echo "Sorry but for now I can't predict which is next episode if they are entitled 😶‍🌫️"
+     read -p "$(gum style --foreground 256 "press to return to menu")" 
+     ShowMenu
+  fi
+
+  if ! $(gum confirm "Most recent series is $series_name episode $current_episode, want to continue with $next_episode?"); then
+    clear; ShowMenu
+  fi
+  # Update with latest episode
+  doUpdateInfoSeries "update_last_episode" $series_UUID $next_episode
+  gum spin --spinner globe --title "Starting $(ColorOutput $ACCENT_COLOR $next_episode)" -- sleep 2
+  doTrackEpisode $series_UUID
+  clear; ShowMenu
+}
+
+# ----------------------------------------------------------------
+
+ChooseEpisode (){
+  # Parsing series name and searching in settings_series.csv   
+  echo "Select which series you want to watch or read 🧐"; echo " "
+  local series_UUID="$(getInfoSeries "get_user_table_choice_UUID")"
+  local series_path="$(getInfoSeries "get_path" $series_UUID)"
+
+  clear; echo "Search your episode 🤓"; echo " " 
+  local episode_choosen=$(ls -1 $series_path | sed -e 's/\..*$//'| gum filter --height 10)
+  clear
+  
+  if $(gum confirm "Want to save $episode_choosen as new last episode watched?"); then
+      doUpdateInfoSeries "update_last_episode" $series_UUID $episode_choosen
+  fi
+ 
+  gum spin --spinner globe --title "Starting $(ColorOutput $ACCENT_COLOR $episode_choosen)" -- sleep 2
+  doTrackEpisode $series_UUID
+  clear; ShowMenu
+}
+
+# ----------------------------------------------------------------
+
+AddLibrary () {
+  # Test if csv library file exist otherwise create it
+  if [ ! -f ${CONFIG_DIRECTORY_PATH}/library.csv ]; then
+     touch ${CONFIG_DIRECTORY_PATH}/library.csv
+     echo "Title,Last Episode" > "${CONFIG_DIRECTORY_PATH}/library.csv"
+  fi
+
+  # Adding Library Name
+  clear;echo "🗄️ Title of the series:"
+  local NAME_OF_SERIES=$(gum input --placeholder "OnePiece, Demon Slayer, Jujutsu Kai...")
+  
+  # Add Folder Path
+  clear;echo "📂 Select series folder:" 
+  ColorOutput 256 "Move Vim like or with Arrows, select with ENTER"
+  echo " "
+  local PATH_TO_DIRECTORY=$(gum file --directory)
+  
+  # Episodes filenames structure
+
+  clear; echo "🗄️ File extension? (Don't add the dot, write "mp4" instead of ".mp4")"
+  local FILE_EXTENSION=$(gum input --placeholder "mp4, mov ...")
+
+  clear; echo "🗄️ How are filenames structured?" 
+  local CHOICE=$(gum choose --item.foreground 250 "Title (ex: The_last_samurai.mp4)" "Number (ex: OnePiece_Ep_432_SUB_EN.mp4)")
+
+  if [[ "${CHOICE:0:1}" == "T" ]]; then
+      IS_TITLED=true
+      LEADING_ZERO=false
+      clear;echo "Disclaimer: With Titled episodes I can't automatically suggest your next one (for now)"
+      echo "Select the last episode you watched or chapter you read: ";echo " "
+      LAST_EPISODE=$(ls -1 $PATH_TO_DIRECTORY | sed -e 's/\..*$//'| gum filter --height 10)
+  else
+      IS_TITLED=false
+      clear;echo "🗄️ Can you insert episodes filenames? Put 'NumberHere' where episode numeber is located"
+      EPISODE_FILE_FORMAT=$(gum input --placeholder "Example: OnePiece_Ep_NumberHere_SUB_ITA for OnePiece_Ep_004_SUB_ITA")
+      clear
+      if $(gum confirm "Episode number have Leading zeros? ex: 001"); then
+         LEADING_ZERO=true
+         clear; echo "How many? (number)"
+         LEADING_ZERO_NUMBER=$(gum input --placeholder ". . .")
+      else
+         LEADING_ZERO=false
+      fi
+      clear; echo "Last episode that you watched? (number)"
+      LAST_EPISODE=$(doLeadingZeroFill ${LEADING_ZERO_NUMBER} $(gum input --placeholder ". . ."))
+      
+  fi
+  
+  clear; gum style --bold "⚗️ SUMMARY"
+  gum style --border normal --padding "1 2" --border-foreground $ACCENT_COLOR "Title: $NAME_OF_SERIES" "Directory path: .../$(basename "$(dirname "$PATH_TO_DIRECTORY")")/$(basename "$PATH_TO_DIRECTORY")" "Last episode: $LAST_EPISODE"
+  read -p "$(gum style --foreground 256 "press to continue")" 
+  clear
+
+  if ! $(gum confirm "Was everything correct?"); then
+   AddLibrary
+  fi
+
+  UNIQUE_UUID=$(uuidgen)
+   
+  # Adding new line to csv library
+  echo $NAME_OF_SERIES,$LAST_EPISODE,$UNIQUE_UUID >> ${CONFIG_DIRECTORY_PATH}/library.csv
+  echo $UNIQUE_UUID,$EPISODE_FILE_FORMAT,$PATH_TO_DIRECTORY,$IS_TITLED,$LEADING_ZERO,$LEADING_ZERO_NUMBER,$FILE_EXTENSION >> "${CONFIG_DIRECTORY_PATH}/series_conf/settings_series.csv"
+}
+
+# ----------------------------------------------------------------
+
+RemoveLibrary (){
+  
+  echo "Select which series you want to remove ⚠️"; echo " "
+  local series_choosen_delete_library=$(gum table < ${CONFIG_DIRECTORY_PATH}/library.csv -w 50,50 --height 10)
+  
+  IFS=',' read -r -a series_chosen_array <<< "$series_choosen_delete_library"
+  
+  local series_UUID="${series_chosen_array[2]}"
+
+  while read line ; do 
+    if [[ $line =~ $series_UUID ]]; then
+       series_choosen_delete_conf="$line"
+       break
+    fi
+  done < ${CONFIG_DIRECTORY_PATH}/series_conf/settings_series.csv
+
+  if $(gum confirm "Are you sure you want to delete $(ColorOutput $ACCENT_COLOR ${series_chosen_array[0]}) ?"); then
+    sed -i "/${series_UUID}/d" ${CONFIG_DIRECTORY_PATH}/library.csv
+    sed -i "/${series_UUID}/d" ${CONFIG_DIRECTORY_PATH}/series_conf/settings_series.csv
+  fi
+  
+}
+
+# ----------------------------------------------------------------
+
+ShowMenu (){
+   InitShowVersion 
+   ACTIONS=$(gum choose --limit 1 "Continue where I left" "Search episode" "Edit config or add series" "Leave")
+   ACTION_SELECTED=${ACTIONS:0:1}
+   
+   clear
+   InitShowVersion
+
+  case $ACTION_SELECTED in
+    C)
+      LatestSeries
+      ShowMenu
+      ;;
+  
+    S)
+      ChooseEpisode
+      ShowMenu
+      ;;
+  
+    E)
+      if $(gum confirm "Want to edit or delete a series?" --affirmative "Add" --negative "Delete"); then
+        AddLibrary
+      else
+        RemoveLibrary
+      fi
+      ShowMenu
+      ;;
+    L)
+      clear
+      echo "Bye, see you later 🖐️"
+      exit
+      ;;
+  esac
+}
+
+# ----------------------------------------------------------------
+TestIfFirstTime
+clear
+ShowMenu
