@@ -10,7 +10,7 @@ Welcome to Bookify a powerful terminal-based user interface for managing your vi
 - **Simplified Video Management**: Easily organize, search, and play your video files.
 - **Series and Anime Tracking**: Keep track of your favorite series and animes, including episode progress.
 - **Customization**: Tailor the library to your needs with customizable configurations.
-- **User-Friendly Interface**: Enjoy a sleek, intuitive terminal interface powered by `bash` and `gum`.
+- **User-Friendly Interface**: Enjoy a sleek, intuitive terminal interface powered by `gum`.
 
 ## Dependecies 
 
