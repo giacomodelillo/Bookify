@@ -4,6 +4,8 @@
 
 # Bookify
 
+⚠️ Your help is needed to make this project an AUR package and a good script to use for everyone 👍 
+
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 Welcome to Bookify a powerful terminal-based user interface for managing your video files, series, animes, and more! Say goodbye to cluttered file directories and hello to organized, interactive bliss.
