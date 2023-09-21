@@ -1,3 +1,6 @@
+<p align="center">
+  <img src="screenshot.png" alt="Your Library Logo" >
+</p>
 
 # Bookify
 

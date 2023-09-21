@@ -165,7 +165,7 @@ getInfoSeries () {
   #  -----------
     get_user_table_choice_UUID)
 
-      local series_choosen=$(gum table < ${CONFIG_DIRECTORY_PATH}/library.csv -w 50,50 --height 10)
+      local series_choosen=$(gum table < ${CONFIG_DIRECTORY_PATH}/library.csv -w 50,50 --height 15)
       IFS=',' read -r -a series_chosen_array <<< "$series_choosen"
       
       echo "${series_chosen_array[2]}"
