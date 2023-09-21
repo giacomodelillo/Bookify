@@ -24,16 +24,18 @@ TestIfFirstTime () {
       mkdir ${CONFIG_DIRECTORY_PATH}
       touch ${CONFIG_DIRECTORY_PATH}/bookify.conf
       mkdir ${CONFIG_DIRECTORY_PATH}/series_conf
+      if [ ! -e ${CONFIG_DIRECTORY_PATH}/series_conf/settings_series.csv ]; then
       touch ${CONFIG_DIRECTORY_PATH}/series_conf/settings_series.csv
+      fi
+      if [ ! -e ${CONFIG_DIRECTORY_PATH}/library.csv ]; then
       touch ${CONFIG_DIRECTORY_PATH}/library.csv
       echo "Title,Last episode,UUID" >> ${CONFIG_DIRECTORY_PATH}/library.csv
-
-      echo $video_player >> ${CONFIG_DIRECTORY_PATH}/bookify.conf
+      fi
+      echo "conf_video_player=$video_player" >> ${CONFIG_DIRECTORY_PATH}/bookify.conf
    fi
 
    source ${CONFIG_DIRECTORY_PATH}/bookify.conf
    VIDEO_PLAYER=$conf_video_player
-   ACCENT_COLOR=$conf_accent_color
 }
 
 # ----------------------------------------------------------------
