@@ -28,7 +28,8 @@ Welcome to Bookify a powerful terminal-based user interface for managing your vi
    chmod +x Bookify
    ```
 ## Contributing
-We welcome contributions! Whether it's bug fixes, new features, or documentation improvements, your help is appreciated. Please read our Contribution Guidelines for more information.
+We welcome contributions! 
+Whether it's bug fixes, new features, or documentation improvements, your help is appreciated. Please read our Contribution Guidelines for more information.
 
 ## Acknowledgements
 We would like to express our gratitude to the open-source community for their amazing contributions and support.
