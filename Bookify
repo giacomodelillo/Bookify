@@ -3,11 +3,7 @@
 export GUM_INPUT_PROMPT="📽️ " 
 
 CONFIG_DIRECTORY_PATH="${XDG_CONFIG_HOME:-$HOME/.config}/bookify"
-
-# Defaults
-VIDEO_PLAYER="mpv"
-ACCENT_COLOR="#FF87D7"
-
+CONFIG_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/bookify/bookify.conf"
 
 # Function to check if 'gum' command is available
 check_gum_command() {
@@ -62,28 +58,14 @@ check_gum_command() {
     fi
 }
 
-# Function to handle errors
-handle_error() {
-    local exit_code=$?
-    echo "Error: $1" >&2
-    exit $exit_code
-}
-
-# Function to initialize and show version information
-InitShowVersion () {
- gum style --border normal --padding "1 2" --border-foreground "$ACCENT_COLOR" "Hello, there! Welcome to $(gum style --foreground "$ACCENT_COLOR" 'Bookify')" "📦 Version 0.1"
-}
 
 # Function to test if it's the first time running the script
 TestIfFirstTime () {
    if [ ! -e "${CONFIG_DIRECTORY_PATH}/bookify.conf" ]; then
-      gum spin --spinner monkey --title "First time, right? 🫠 Creating config files" --sleep 3
-      
-      clear; echo "🗄️ What do you use to watch video? (Mpv, VLC, ...)"
-      video_player="$(gum input --placeholder "Support is ready only for MPV")"
-
+      gum spin --spinner "$CONF_SPINNER" --title "First time, right? 🫠 Creating config files" --sleep 3
+  
       mkdir -p "${CONFIG_DIRECTORY_PATH}"
-      touch "${CONFIG_DIRECTORY_PATH}"/bookify.conf
+      cp bookify.conf "${CONFIG_DIRECTORY_PATH}"/bookify.conf
       mkdir -p "${CONFIG_DIRECTORY_PATH}"/series_conf
       if [ ! -e "${CONFIG_DIRECTORY_PATH}"/series_conf/settings_series.csv ]; then
       touch "${CONFIG_DIRECTORY_PATH}"/series_conf/settings_series.csv
@@ -92,12 +74,14 @@ TestIfFirstTime () {
       touch "${CONFIG_DIRECTORY_PATH}"/library.csv
       echo "Title,Last episode,UUID" >> "${CONFIG_DIRECTORY_PATH}"/library.csv
       fi
-      echo "conf_video_player=$video_player" >> "${CONFIG_DIRECTORY_PATH}"/bookify.conf
    fi
 
-   # shellcheck source=./bookify.conf
-   source "${CONFIG_DIRECTORY_PATH}"/bookify.conf
-   VIDEO_PLAYER=$conf_video_player
+   source "$CONFIG_FILE"
+}
+
+# Function to initialize and show version information
+InitShowVersion () {
+ gum style --border normal --padding "1 2" --border-foreground "$accent_color" "Hello, there! Welcome to $(gum style --foreground "$accent_color" 'Bookify')" "📦 Version 1.0"
 }
 
 # Function to add leading zeros to a number
@@ -253,7 +237,7 @@ getInfoSeries () {
 }
 
 doUpdateInfoSeries () {
-  
+
   local GET_REQUEST=$1  
   local UUID=$2
   local VARIABLE_UPDATE=$3
@@ -286,8 +270,8 @@ doUpdateInfoSeries () {
           NEW_EPISODE_UP="${temp_var%"$after"}"
         fi
         
-        NEW_STRING_LIB_UPDATED="$SERIES_NAME,$NEW_EPISODE_UP,$UUID"
-        OLD_STRING_LIB="$SERIES_NAME,$SERIES_LAST_EPISODE,$UUID"
+        local NEW_STRING_LIB_UPDATED="$SERIES_NAME,$NEW_EPISODE_UP,$UUID"
+        local OLD_STRING_LIB="$SERIES_NAME,$SERIES_LAST_EPISODE,$UUID"
 
         # Add new line and delete last one
         sed -i 2i"$NEW_STRING_LIB_UPDATED" "${CONFIG_DIRECTORY_PATH}"/library.csv
@@ -332,7 +316,7 @@ FILE_EXTENSION="$(getInfoSeries "get_file_extension" "$series_UUID")"
 
 episode_path="$PATH_TO_DIRECTORY/$episode_name"
  
- "$VIDEO_PLAYER" "$episode_path" | while IFS= read -r line; do
+ "$video_player" "$episode_path" | while IFS= read -r line; do
      if [[ $line =~ Playing ]]; then # Works for MPV for now
         # Save the matched text and stop
           string="$EPISODE_FILE_FORMAT.$FILE_EXTENSION"
@@ -372,7 +356,7 @@ LatestSeries (){
   fi
   # Update with latest episode
   doUpdateInfoSeries "update_last_episode" "$series_UUID" "$next_episode"
-  gum spin --spinner globe --title "Starting $(ColorOutput "$ACCENT_COLOR" "$next_episode")" -- sleep 2
+  gum spin --spinner "$CONF_SPINNER" --title "Starting $(ColorOutput "$accent_color" "$next_episode")" -- sleep 2
   doTrackEpisode "$series_UUID"
   clear; ShowMenu
 }
@@ -394,48 +378,142 @@ ChooseEpisode (){
       
       doUpdateInfoSeries "update_last_episode" "$series_UUID" "$episode_choosen"
 
-      gum spin --spinner globe --title "Starting $(ColorOutput $ACCENT_COLOR "$episode_choosen")" -- sleep 2
+      gum spin --spinner "$CONF_SPINNER" --title "Starting $(ColorOutput "$accent_color" "$episode_choosen")" -- sleep 2
       doTrackEpisode "$series_UUID" 
       clear; ShowMenu
   fi
  
-  gum spin --spinner globe --title "Starting $(ColorOutput $ACCENT_COLOR "$episode_choosen")" -- sleep 2
+  gum spin --spinner "$CONF_SPINNER" --title "Starting $(ColorOutput "$accent_color" "$episode_choosen")" -- sleep 2
   doTrackEpisode "$series_UUID" "$episode_choosen"
   clear; ShowMenu
 }
 
 # ----------------------------------------------------------------
 
-EditLibrary () {
+doModifyInfoSeries() {
+  local action=$1
+  local series_UUID=$2
+  local value=$3
 
-  echo "Select which series you want to edit 🔄 :"; echo " "  
+  local series_conf_file="${CONFIG_DIRECTORY_PATH}/series_conf/settings_series.csv"
+  local library_file="${CONFIG_DIRECTORY_PATH}/library.csv"
 
-  series_UUID="$(getInfoSeries "get_user_table_choice_UUID")"
-  series_name="$(getInfoSeries "get_name" "$series_UUID")"
+  local PATH_TO_DIRECTORY
+  local EPISODE_FILE_FORMAT
+  local IS_TITLED
+  local SERIES_LAST_EPISODE
+  local FILE_EXTENSION
+  local LEADING_ZERO
+  local LEADING_ZERO_NUMBER
+  local SERIES_NAME
+  local FILE_EXSTENSION
   
+  PATH_TO_DIRECTORY="$(getInfoSeries "get_path" "$series_UUID")"
+  EPISODE_FILE_FORMAT="$(getInfoSeries "get_ep_format" "$series_UUID")"
+  IS_TITLED="$(getInfoSeries "get_is_titled" "$series_UUID")"
+  SERIES_LAST_EPISODE="$(getInfoSeries "get_cur_episode" "$series_UUID")"
+  FILE_EXTENSION="$(getInfoSeries "get_file_extension" "$series_UUID")"
+  LEADING_ZERO="$(getInfoSeries "get_leading_zero" "$UUID")"
+  LEADING_ZERO_NUMBER="$(getInfoSeries "get_leading_zero_number" "$UUID")"
+  SERIES_NAME="$(getInfoSeries "get_name" "$UUID")"
+  FILE_EXSTENSION="$(getInfoSeries "get_file_extension" "$UUID")"
 
-  clear; echo "What to do with $(ColorOutput $ACCENT_COLOR "$series_name")"?; echo " " 
-  ACTIONS="$(gum choose --limit 1 "Edit" "Delete" "$(ColorOutput 256 "Menu")")"
+  # 0 TITLE | 1 LAST_EPISODE | 2 UUID 
+  # 0 UUID | 1 EPISODE_FILE_FORMAT | 2 PATH_TO_DIRECTORY | 3 IS_TITLED | 4 LEADING_ZERO | 5 LEADING_ZERO_NUMBER CONF
+
+  case "$action" in
+    "update_name")
+        local NEW_STRING_LIB_UPDATED
+        NEW_STRING_LIB_UPDATED="$value,$SERIES_LAST_EPISODE,$series_UUID"
   
+        sed -i "/$series_UUID/d" "${library_file}"
+        sed -i 2i"$NEW_STRING_LIB_UPDATED" "${library_file}"      
+      ;;
+    "update_ep_format")
+        local NEW_STRING_CONF_UPDATED
+        NEW_STRING_CONF_UPDATED="$series_UUID,$value,$PATH_TO_DIRECTORY,$IS_TITLED,$LEADING_ZERO,$LEADING_ZERO_NUMBER,$FILE_EXSTENSION"
+        
+        sed -i "/$series_UUID/d" "${series_conf_file}"
+        sed -i 2i"$NEW_STRING_CONF_UPDATED" "${series_conf_file}"
+      ;;
+    "update_path")
+        local NEW_STRING_CONF_UPDATED
+        NEW_STRING_CONF_UPDATED="$series_UUID,$EPISODE_FILE_FORMAT,$value,$IS_TITLED,$LEADING_ZERO,$LEADING_ZERO_NUMBER,$FILE_EXSTENSION"
+        
+        sed -i "/$series_UUID/d" "${series_conf_file}"
+        sed -i 2i"$NEW_STRING_CONF_UPDATED" "${series_conf_file}"
+      ;;
+    "update_is_titled")
+        local NEW_STRING_CONF_UPDATED
+        NEW_STRING_CONF_UPDATED="$series_UUID,$EPISODE_FILE_FORMAT,$PATH_TO_DIRECTORY,$value,$LEADING_ZERO,$LEADING_ZERO_NUMBER,$FILE_EXSTENSION"
+        
+        sed -i "/$series_UUID/d" "${series_conf_file}"
+        sed -i 2i"$NEW_STRING_CONF_UPDATED" "${series_conf_file}"
+      ;;
+    "remove_series")
+      sed -i "/$series_UUID/d" "${library_file}"
+      sed -i "/$series_UUID/d" "${series_conf_file}"
+      ;;
+    *)
+      echo "Invalid action: $action"
+      return 1
+      ;;
+  esac
+}
+
+
+
+ModifyLibrary() {
+  echo "Select which series you want to modify 🔄 :"; echo " "  
+
+  series_UUID=$(getInfoSeries "get_user_table_choice_UUID")
+  series_name=$(getInfoSeries "get_name" "$series_UUID")
+  
+  clear; echo "What do you want to modify in $(ColorOutput "$accent_color" "$series_name")?"; echo " " 
+  OPTIONS=("Edit Series" "Edit Episode Format" "Edit Folder Path" "Edit Titled Status" "Remove series" "Back to Menu")
+  ACTIONS=$(gum choose --limit 1 "${OPTIONS[@]}")
+
   case $ACTIONS in
+    "Edit Series")
+      clear; echo "Enter the new series name:"
+      NEW_NAME=$(gum input --placeholder "OnePiece, Demon Slayer, Jujutsu Kai...")
+      doModifyInfoSeries "update_name" "$series_UUID" "$NEW_NAME"
+      ;;
+    "Edit Episode Format")
+      clear; echo "Enter the new episode format:"
+      NEW_FORMAT=$(gum input --placeholder "Example: OnePiece_Ep_NumberHere_SUB_ITA for OnePiece_Ep_004_SUB_ITA")
+      doModifyInfoSeries "update_ep_format" "$series_UUID" "$NEW_FORMAT"
+      ;;
+    "Edit Folder Path")
+      clear; echo "Enter the new folder path:"
+      NEW_PATH=$(gum file --directory)
+      doModifyInfoSeries "update_path" "$series_UUID" "$NEW_PATH"
+      ;;
+    "Edit Titled Status")
+      if gum confirm "Is the series titled now?"
+      then
+        doModifyInfoSeries "update_is_titled" "$series_UUID" true
+      else
+        doModifyInfoSeries "update_is_titled" "$series_UUID" false
+      fi
+      ;;
+    "Remove series")
+       if gum confirm "Are you sure you want to delete $(ColorOutput "$accent_color" "$series_name") ?"
+       then
+         doModifyInfoSeries "remove_series" "$series_UUID" 
+       fi
+      ;;
+    "Back to Menu")
+      clear
+      ShowMenu
+      ;;
+  esac
 
-     Menu)
-       clear
-       ShowMenu
-     ;;
-     
-     Delete)
-       RemoveLibrary "$series_UUID"
-     ;;
-     
-     Edit)
-      series_path="$(getInfoSeries "get_path" "$series_UUID")"
-      episode_file_format="$(getInfoSeries "get_ep_format" "$series_UUID")"
-      ACTIONS="$(gum choose --limit 1 "Edit" "Delete" "$(ColorOutput 256 "Menu")")"
-       
-     ;;
-
-  esac 
+  clear; gum style --bold "⚗️ UPDATED SUMMARY"
+  gum style --border normal --padding "1 2" --border-foreground "$accent_color" "Series Name: $(getInfoSeries "get_name" "$series_UUID")" "Episode Format: $(getInfoSeries "get_ep_format" "$series_UUID")" "Folder Path: $(getInfoSeries "get_path" "$series_UUID")"
+  read -r -p "$(gum style --foreground 256 "Press enter to return to menu")"
+  clear
+  ShowMenu
 }
 
 # ----------------------------------------------------------------
@@ -485,7 +563,7 @@ AddLibrary () {
   fi
   
   clear; gum style --bold "⚗️ SUMMARY"
-  gum style --border normal --padding "1 2" --border-foreground $ACCENT_COLOR "Title: $NAME_OF_SERIES" "Directory path: .../$(basename "$(dirname "$PATH_TO_DIRECTORY")")/$(basename "$PATH_TO_DIRECTORY")" "Last episode: $LAST_EPISODE"
+  gum style --border normal --padding "1 2" --border-foreground "$accent_color" "Title: $NAME_OF_SERIES" "Directory path: .../$(basename "$(dirname "$PATH_TO_DIRECTORY")")/$(basename "$PATH_TO_DIRECTORY")" "Last episode: $LAST_EPISODE"
   read -r -p "$(gum style --foreground 256 "press to continue")" 
   clear
 
@@ -501,22 +579,6 @@ AddLibrary () {
   echo "$UNIQUE_UUID","$EPISODE_FILE_FORMAT","$PATH_TO_DIRECTORY",$IS_TITLED,$LEADING_ZERO,"$LEADING_ZERO_NUMBER","$FILE_EXTENSION" >> "${CONFIG_DIRECTORY_PATH}/series_conf/settings_series.csv"
 }
 
-# ----------------------------------------------------------------
-
-RemoveLibrary (){
-  
-  series_UUID=$1
-  series_name="$(getInfoSeries "get_name" "$series_UUID")"
-
-  if gum confirm "Are you sure you want to delete $(ColorOutput "$ACCENT_COLOR" "$series_name") ?"
-  then
-    sed -i "/${series_UUID}/d" "${CONFIG_DIRECTORY_PATH}"/library.csv
-    sed -i "/${series_UUID}/d" "${CONFIG_DIRECTORY_PATH}"/series_conf/settings_series.csv
-  fi
-  
-}
-
-# ----------------------------------------------------------------
 
 ShowMenu (){
    InitShowVersion 
@@ -550,6 +612,10 @@ ShowMenu (){
       echo "Bye, see you later 🖐️"
       exit
       ;;
+      *)
+        echo "Error: Invalid option selected. Please choose a valid option."
+        exit 1
+        ;;
   esac
 }
 
